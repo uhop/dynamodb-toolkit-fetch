@@ -1,0 +1,37 @@
+# dynamodb-toolkit-fetch
+
+> Fetch adapter for `dynamodb-toolkit` v3. Serves the toolkit's standard REST route pack as a `(request: Request) => Promise<Response>` handler.
+
+**Status:** scaffolding. API below is provisional.
+
+## Install
+
+```sh
+npm install dynamodb-toolkit-fetch dynamodb-toolkit
+```
+
+## Quick start
+
+```js
+import {Adapter} from 'dynamodb-toolkit';
+import {createFetchAdapter} from 'dynamodb-toolkit-fetch';
+
+const adapter = new Adapter({client, table: 'planets', keyFields: ['name']});
+const handler = createFetchAdapter(adapter, {mountPath: '/planets'});
+
+// Cloudflare Workers
+export default {fetch: handler};
+
+// Bun.serve
+Bun.serve({port: 3000, fetch: handler});
+
+// Deno.serve
+Deno.serve(handler);
+```
+
+## Links
+
+- Parent toolkit: https://github.com/uhop/dynamodb-toolkit
+- Sibling (Koa): https://github.com/uhop/dynamodb-toolkit-koa
+- Sibling (Express): https://github.com/uhop/dynamodb-toolkit-express
+- Route pack reference: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler
