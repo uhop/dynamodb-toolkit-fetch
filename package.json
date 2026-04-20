@@ -1,6 +1,6 @@
 {
   "name": "dynamodb-toolkit-fetch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fetch adapter for dynamodb-toolkit — serves the standard REST route pack as a (Request) → Promise<Response> handler. Runs on Cloudflare Workers, Deno Deploy, Bun.serve, Hono, itty-router, and Node's native fetch server.",
   "type": "module",
   "main": "./src/index.js",

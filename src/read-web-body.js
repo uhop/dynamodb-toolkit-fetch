@@ -18,7 +18,14 @@ export const readJsonBody = async (request, maxBodyBytes) => {
   const cl = request.headers.get('content-length');
   if (cl !== null) {
     const n = Number(cl);
-    if (Number.isFinite(n) && n > maxBodyBytes) {
+    // Require a non-negative integer. `Number.isFinite` alone accepts '-1', '1.5', etc.,
+    // letting malformed headers bypass the fast-reject path entirely — the mid-stream
+    // counter would still catch real oversize uploads but the advertised pre-stream
+    // 413 contract would be quietly violated.
+    if (!Number.isInteger(n) || n < 0) {
+      throw Object.assign(new Error('Invalid Content-Length'), {status: 400, code: 'BadContentLength'});
+    }
+    if (n > maxBodyBytes) {
       throw Object.assign(new Error(`Request body exceeds ${maxBodyBytes} bytes`), {status: 413, code: 'PayloadTooLarge'});
     }
   }

@@ -104,3 +104,49 @@ test('custom maxBodyBytes accepts a body at the limit', async t => {
   );
   t.equal(res.status, 204, 'body at exact cap accepted');
 });
+
+test('negative Content-Length → 400 BadContentLength (does not bypass fast-reject)', async t => {
+  const adapter = makeMockAdapter();
+  const handler = createFetchAdapter(adapter, {maxBodyBytes: 1024});
+  const res = await handler(
+    new Request('http://local.test/', {
+      method: 'POST',
+      headers: {'content-type': 'application/json', 'content-length': '-1'},
+      body: JSON.stringify({name: 'x'})
+    })
+  );
+  t.equal(res.status, 400);
+  const body = await res.json();
+  t.equal(body.code, 'BadContentLength');
+  t.equal(adapter.calls.length, 0, 'adapter never called');
+});
+
+test('fractional Content-Length → 400 BadContentLength', async t => {
+  const adapter = makeMockAdapter();
+  const handler = createFetchAdapter(adapter, {maxBodyBytes: 1024});
+  const res = await handler(
+    new Request('http://local.test/', {
+      method: 'POST',
+      headers: {'content-type': 'application/json', 'content-length': '1.5'},
+      body: JSON.stringify({name: 'x'})
+    })
+  );
+  t.equal(res.status, 400);
+  const body = await res.json();
+  t.equal(body.code, 'BadContentLength');
+});
+
+test('non-numeric Content-Length → 400 BadContentLength', async t => {
+  const adapter = makeMockAdapter();
+  const handler = createFetchAdapter(adapter, {maxBodyBytes: 1024});
+  const res = await handler(
+    new Request('http://local.test/', {
+      method: 'POST',
+      headers: {'content-type': 'application/json', 'content-length': 'not-a-number'},
+      body: JSON.stringify({name: 'x'})
+    })
+  );
+  t.equal(res.status, 400);
+  const body = await res.json();
+  t.equal(body.code, 'BadContentLength');
+});
