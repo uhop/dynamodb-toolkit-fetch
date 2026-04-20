@@ -75,7 +75,7 @@ The adapter is terminal by default — if you omit `onMiss`, unknown routes beco
 | `policy`             | `defaultPolicy`                         | Partial overrides for prefixes, envelope keys, status codes.          |
 | `sortableIndices`    | `{}`                                    | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.         |
 | `keyFromPath`        | `(raw, a) => ({[a.keyFields[0]]: raw})` | Convert `:key` path segment to a key object (composite keys).         |
-| `exampleFromContext` | `() => ({})`                            | Derive `prepareListInput` `example` from `(query, body, request)`.    |
+| `exampleFromContext` | `() => ({})`                            | Derive `prepareListInput` `example` from `{query, body, adapter, framework: 'fetch', request}`. |
 | `maxBodyBytes`       | `1048576` (1 MiB)                       | Cap for request bodies. Enforced via `Content-Length` + byte counter. |
 | `mountPath`          | `''`                                    | Path prefix to strip before route matching (e.g. `/planets`).         |
 | `onMiss`             | —                                       | Hook for unknown routes; return `null` to yield to a parent router.   |

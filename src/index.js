@@ -12,17 +12,18 @@
 // Deno Deploy, Bun.serve, Hono, itty-router, and Node's native fetch server.
 
 import {
-  parseFields,
-  parseSort,
-  parseFilter,
   parsePatch,
   parseNames,
-  parsePaging,
+  parseFields,
   parseFlag,
   buildEnvelope,
   paginationLinks,
   mergePolicy,
-  mapErrorStatus
+  mapErrorStatus,
+  buildListOptions,
+  resolveSort,
+  stripMount,
+  validateWriteBody
 } from 'dynamodb-toolkit/rest-core';
 import {matchRoute} from 'dynamodb-toolkit/handler';
 
@@ -35,21 +36,11 @@ const JSON_HEADERS = {'content-type': 'application/json; charset=utf-8'};
 // and express adapters' behavior. Duplicate-key preservation is tracked as an
 // upstream 3.2.0 wishlist item.
 const coerceSearchParams = searchParams => {
-  const out = {};
+  const out = Object.create(null);
   for (const [k, v] of searchParams.entries()) {
     if (!(k in out)) out[k] = v;
   }
   return out;
-};
-
-// Strip an optional mount prefix from the request pathname. Returns the
-// residual path relative to the adapter, or `null` when the pathname isn't
-// under the configured mount.
-const stripMount = (pathname, mountPath) => {
-  if (!mountPath) return pathname;
-  if (pathname === mountPath) return '/';
-  if (pathname.startsWith(mountPath + '/')) return pathname.slice(mountPath.length);
-  return null;
 };
 
 export const createFetchAdapter = (adapter, options = {}) => {
@@ -61,23 +52,7 @@ export const createFetchAdapter = (adapter, options = {}) => {
   const mountPath = options.mountPath || '';
   const onMiss = options.onMiss;
 
-  const buildListOptions = query => {
-    const fields = parseFields(query.fields);
-    const filter = parseFilter(query.filter);
-    const paging = parsePaging(query, {defaultLimit: policy.defaultLimit, maxLimit: policy.maxLimit, maxOffset: policy.maxOffset});
-    const consistent = parseFlag(query.consistent);
-    /** @type {import('dynamodb-toolkit').ListOptions} */
-    const out = {...paging, consistent, needTotal: policy.needTotal};
-    if (fields) out.fields = fields;
-    if (filter) out.filter = filter.query;
-    return out;
-  };
-
-  const resolveSort = query => {
-    const sort = parseSort(query.sort);
-    if (!sort) return {index: undefined, descending: false};
-    return {index: sortableIndices[sort.field], descending: sort.direction === 'desc'};
-  };
+  const makeExampleCtx = (query, body, request) => ({query, body, adapter, framework: 'fetch', request});
 
   const jsonResponse = (status, body) => new Response(JSON.stringify(body), {status, headers: JSON_HEADERS});
   const emptyResponse = (status = 204) => new Response(null, {status});
@@ -107,10 +82,11 @@ export const createFetchAdapter = (adapter, options = {}) => {
   // --- collection-level handlers ---
 
   const handleGetAll = async (request, query) => {
-    const opts = buildListOptions(query);
-    const {index, descending} = resolveSort(query);
+    /** @type {import('dynamodb-toolkit').ListOptions} */
+    const opts = buildListOptions(query, policy);
+    const {index, descending} = resolveSort(query, sortableIndices);
     if (descending) opts.descending = true;
-    const example = exampleFromContext(query, null, request);
+    const example = exampleFromContext(makeExampleCtx(query, null, request));
     const result = await adapter.getAll(opts, example, index);
 
     const links = paginationLinks(result.offset, result.limit, result.total, urlBuilderFor(request));
@@ -120,15 +96,16 @@ export const createFetchAdapter = (adapter, options = {}) => {
   };
 
   const handlePost = async request => {
-    const body = await readJsonBody(request, maxBodyBytes);
+    const body = validateWriteBody(await readJsonBody(request, maxBodyBytes));
     await adapter.post(body);
     return emptyResponse();
   };
 
   const handleDeleteAll = async (request, query) => {
-    const opts = buildListOptions(query);
-    const {index} = resolveSort(query);
-    const example = exampleFromContext(query, null, request);
+    /** @type {import('dynamodb-toolkit').ListOptions} */
+    const opts = buildListOptions(query, policy);
+    const {index} = resolveSort(query, sortableIndices);
+    const example = exampleFromContext(makeExampleCtx(query, null, request));
     const params = await adapter._buildListParams(opts, false, example, index);
     const r = await adapter.deleteAllByParams(params);
     return jsonResponse(200, {processed: r.processed});
@@ -191,9 +168,10 @@ export const createFetchAdapter = (adapter, options = {}) => {
   const handleCloneAll = async (request, query) => {
     const body = await readJsonBody(request, maxBodyBytes);
     const overlay = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
-    const opts = buildListOptions(query);
-    const {index} = resolveSort(query);
-    const example = exampleFromContext(query, body, request);
+    /** @type {import('dynamodb-toolkit').ListOptions} */
+    const opts = buildListOptions(query, policy);
+    const {index} = resolveSort(query, sortableIndices);
+    const example = exampleFromContext(makeExampleCtx(query, body, request));
     const params = await adapter._buildListParams(opts, false, example, index);
     const r = await adapter.cloneAllByParams(params, item => ({...item, ...overlay}));
     return jsonResponse(200, {processed: r.processed});
@@ -202,9 +180,10 @@ export const createFetchAdapter = (adapter, options = {}) => {
   const handleMoveAll = async (request, query) => {
     const body = await readJsonBody(request, maxBodyBytes);
     const overlay = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
-    const opts = buildListOptions(query);
-    const {index} = resolveSort(query);
-    const example = exampleFromContext(query, body, request);
+    /** @type {import('dynamodb-toolkit').ListOptions} */
+    const opts = buildListOptions(query, policy);
+    const {index} = resolveSort(query, sortableIndices);
+    const example = exampleFromContext(makeExampleCtx(query, body, request));
     const params = await adapter._buildListParams(opts, false, example, index);
     const r = await adapter.moveAllByParams(params, item => ({...item, ...overlay}));
     return jsonResponse(200, {processed: r.processed});
@@ -221,7 +200,7 @@ export const createFetchAdapter = (adapter, options = {}) => {
   };
 
   const handleItemPut = async (request, key, query) => {
-    const body = /** @type {Record<string, unknown>} */ (await readJsonBody(request, maxBodyBytes));
+    const body = /** @type {Record<string, unknown>} */ (validateWriteBody(await readJsonBody(request, maxBodyBytes)));
     const force = parseFlag(query.force);
     const merged = {...body, ...key};
     await adapter.put(merged, {force});
@@ -229,7 +208,7 @@ export const createFetchAdapter = (adapter, options = {}) => {
   };
 
   const handleItemPatch = async (request, key) => {
-    const body = /** @type {Record<string, unknown>} */ (await readJsonBody(request, maxBodyBytes));
+    const body = /** @type {Record<string, unknown>} */ (validateWriteBody(await readJsonBody(request, maxBodyBytes)));
     const {patch, options: patchOptions} = parsePatch(body, {metaPrefix: policy.metaPrefix});
     await adapter.patch(key, patch, patchOptions);
     return emptyResponse();
@@ -265,6 +244,7 @@ export const createFetchAdapter = (adapter, options = {}) => {
 
     if (adapterPath === null) return handleMiss(request);
 
+    // matchRoute promotes HEAD → GET internally; route.method is effective.
     const route = matchRoute(request.method, adapterPath, policy.methodPrefix);
     if (route.kind === 'unknown') return handleMiss(request);
 

@@ -184,19 +184,50 @@ test('custom keyFromPath receives the raw segment + adapter', async t => {
   });
 });
 
-test('exampleFromContext receives (query, body, request)', async t => {
+test('exampleFromContext receives {query, body, adapter, framework, request}', async t => {
   const adapter = makeMockAdapter();
   const seen = [];
-  const exampleFromContext = (query, body, request) => {
-    seen.push({query, body, method: request.method, pathname: new URL(request.url).pathname});
+  const exampleFromContext = ({query, body, adapter: adp, framework, request}) => {
+    seen.push({query, body, framework, method: request.method, pathname: new URL(request.url).pathname, adapterIsSame: adp === adapter});
     return {tenant: query.tenant || 'default'};
   };
   await withFetchHandler(createFetchAdapter(adapter, {exampleFromContext}), async client => {
     await client('/?tenant=acme&limit=5');
     t.equal(seen[0].query.tenant, 'acme');
+    t.equal(seen[0].framework, 'fetch');
     t.equal(seen[0].method, 'GET');
     t.equal(seen[0].pathname, '/');
+    t.equal(seen[0].body, null, 'body is null on GET /');
+    t.ok(seen[0].adapterIsSame, 'adapter in options bag is the same Adapter instance');
     t.equal(adapter.calls[0].example.tenant, 'acme');
+  });
+});
+
+test('exampleFromContext on PUT /-clone receives the parsed overlay body', async t => {
+  const adapter = makeMockAdapter();
+  const seen = [];
+  const exampleFromContext = ({query, body}) => {
+    seen.push({query, body});
+    return {};
+  };
+  await withFetchHandler(createFetchAdapter(adapter, {exampleFromContext}), async client => {
+    await client('/-clone?tenant=acme', {
+      method: 'PUT',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({tag: 'cloned'})
+    });
+    t.deepEqual(seen[0].body, {tag: 'cloned'});
+    t.equal(seen[0].query.tenant, 'acme');
+  });
+});
+
+test('mountPath with trailing slash is normalized', async t => {
+  const adapter = makeMockAdapter();
+  const handler = createFetchAdapter(adapter, {mountPath: '/planets/'});
+  await withFetchHandler(handler, async client => {
+    const res = await client('/planets/earth');
+    t.equal(res.status, 200);
+    t.deepEqual(adapter.calls[0].key, {name: 'earth'}, 'route matched under trailing-slash mount');
   });
 });
 

@@ -4,6 +4,31 @@ import type {RestPolicy} from 'dynamodb-toolkit/rest-core';
 /** Return value from {@link FetchAdapterOptions.onMiss}. */
 export type OnMissResult = Response | null | Promise<Response | null>;
 
+/**
+ * Context passed to {@link FetchAdapterOptions.exampleFromContext}. Mirrors
+ * the shape used by the other framework adapters so cross-adapter callbacks
+ * can branch on `framework`.
+ */
+export interface FetchExampleContext<TItem extends Record<string, unknown> = Record<string, unknown>> {
+  /** Parsed URL query-string (first value per repeated key). */
+  query: Record<string, string>;
+  /**
+   * Parsed JSON body. Always the parsed body before the call — `null` only
+   * when the request had no body, not as a placeholder for unread bodies.
+   */
+  body: unknown;
+  /** The Adapter targeted by this handler. */
+  adapter: Adapter<TItem>;
+  /** Discriminator for cross-adapter callbacks. */
+  framework: 'fetch';
+  /**
+   * The incoming Fetch `Request`. `request.body` is already consumed by the
+   * time `exampleFromContext` runs — inspect `request.headers`, `request.url`,
+   * or host-specific context (e.g. Cloudflare Workers' `request.cf`).
+   */
+  request: Request;
+}
+
 /** Options for {@link createFetchAdapter}. */
 export interface FetchAdapterOptions<TItem extends Record<string, unknown> = Record<string, unknown>> {
   /** Partial overrides for the REST policy (merged with the default). */
@@ -40,18 +65,11 @@ export interface FetchAdapterOptions<TItem extends Record<string, unknown> = Rec
    * Default: `() => ({})` — no example; `prepareListInput` derives
    * everything from the `index` argument alone.
    *
-   * @param query Parsed URL query-string (first value per key).
-   * @param body Parsed request body. `null` on `GET /` and `DELETE /`; the
-   *   overlay object on `PUT /-clone` / `PUT /-move`.
-   * @param request The incoming Fetch `Request`. `request.body` is already
-   *   consumed at this point — inspect `request.headers`, `request.method`,
-   *   `request.url`, or host-specific context (e.g. Cloudflare Workers'
-   *   `request.cf`) instead.
-   * @returns The `example` argument threaded into `Adapter.prepareListInput`.
-   *   Typically shapes a `KeyConditionExpression` for a GSI (e.g.
-   *   `{tenantId: resolveTenant(request)}` for per-tenant scoping).
+   * Takes an options bag of `{query, body, adapter, framework: 'fetch', request}`;
+   * the shape matches the other framework adapters so a tenant-scoping
+   * callback can be shared across koa, express, fetch, and lambda.
    */
-  exampleFromContext?: (query: Record<string, string>, body: unknown, request: Request) => Record<string, unknown>;
+  exampleFromContext?: (context: FetchExampleContext<TItem>) => Record<string, unknown>;
   /**
    * Cap for the request body in bytes. Enforced on every body-reading route.
    * The adapter rejects with `413 PayloadTooLarge` either before reading

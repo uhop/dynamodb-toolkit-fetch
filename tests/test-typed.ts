@@ -47,7 +47,7 @@ test('typed: FetchAdapterOptions typechecks the full options surface', t => {
     policy: {defaultLimit: 25, maxLimit: 200, needTotal: false},
     sortableIndices: {name: 'by-name-index'},
     keyFromPath: (raw, adp) => ({[adp.keyFields[0]]: raw}),
-    exampleFromContext: (query, _body, request) => ({tenant: query.tenant ?? 'default', via: request.method}),
+    exampleFromContext: ({query, request}) => ({tenant: query.tenant ?? 'default', via: request.method}),
     maxBodyBytes: 128 * 1024,
     mountPath: '/planets'
   };
