@@ -1,8 +1,6 @@
 # dynamodb-toolkit-fetch — extended reference
 
-> Fetch adapter for `dynamodb-toolkit` v3. Serves the toolkit's standard REST route pack as a `(request: Request) => Promise<Response>` handler.
-
-**Status:** scaffolding; implementation pending. Full reference will land with the first real release.
+> Fetch adapter for `dynamodb-toolkit` v3. Serves the toolkit's standard REST route pack as a `(request: Request) => Promise<Response>` handler. Zero runtime dependencies; no framework peer dep.
 
 ## Scope
 
@@ -13,22 +11,78 @@ A thin translation layer between the Web Fetch handler shape and `dynamodb-toolk
 - Builders + policy from `dynamodb-toolkit/rest-core` — `buildEnvelope`, `buildErrorBody`, `paginationLinks`, `defaultPolicy`, `mapErrorStatus`, `mergePolicy`.
 - A dynamodb-toolkit `Adapter` instance supplied by the caller.
 
-## Target API (provisional)
+## Public API
 
 ```ts
-export interface FetchAdapterOptions<TItem extends Record<string, unknown> = Record<string, unknown>> {
-  policy?: Partial<Policy>;
+export interface FetchAdapterOptions<TItem extends Record<string, unknown>> {
+  policy?: Partial<RestPolicy>;
   sortableIndices?: Record<string, string>;
   keyFromPath?: (rawKey: string, adapter: Adapter<TItem>) => Record<string, unknown>;
   exampleFromContext?: (query: Record<string, string>, body: unknown, request: Request) => Record<string, unknown>;
   maxBodyBytes?: number;
-  mountPath?: string; // strip this prefix from the URL pathname before matching
+  mountPath?: string;
+  onMiss?: (request: Request) => Response | null | Promise<Response | null> | undefined | void;
 }
 
-export function createFetchAdapter<TItem extends Record<string, unknown>>(
+export function createFetchAdapter<TItem>(
   adapter: Adapter<TItem>,
   options?: FetchAdapterOptions<TItem>
 ): (request: Request) => Promise<Response>;
+
+// With onMiss, return type widens:
+export function createFetchAdapter<TItem>(
+  adapter: Adapter<TItem>,
+  options: FetchAdapterOptions<TItem> & {onMiss: NonNullable<FetchAdapterOptions<TItem>['onMiss']>}
+): (request: Request) => Promise<Response | null>;
+```
+
+## Routes
+
+Rooted at `options.mountPath` (or at `/` when no mount is configured):
+
+- `GET /` — `getAll` (envelope with data / offset / limit / total / optional next+prev links)
+- `POST /` — `post` (204 on success)
+- `DELETE /` — `deleteAllByParams` (returns `{processed}`)
+- `GET /-by-names`, `DELETE /-by-names` — `getByKeys` / `deleteByKeys`
+- `PUT /-load` — `putAll` (body must be an array; 400 `BadLoadBody` otherwise)
+- `PUT /-clone`, `PUT /-move` — `cloneAllByParams` / `moveAllByParams` (body is overlay)
+- `PUT /-clone-by-names`, `PUT /-move-by-names` — `cloneByKeys` / `moveByKeys`
+- `GET /:key` — `getByKey` (empty `policy.statusCodes.miss` on undefined)
+- `PUT /:key` — `put` (body merged with URL key; `?force=true` toggles force)
+- `PATCH /:key` — `patch` (meta-prefixed keys extracted as options via `parsePatch`)
+- `DELETE /:key` — `delete`
+- `PUT /:key/-clone`, `PUT /:key/-move` — `clone` / `move` (single-item, overlay body)
+
+## Dispatch & error behavior
+
+- Unknown route or off-mount path → `onMiss(request)` if provided, else empty `404 Response`.
+- Known route shape with wrong method → `405 MethodNotAllowed`.
+- Adapter throws → error runs through `policy.errorBody` + `mapErrorStatus` to produce a JSON body + status.
+- Adapter throws with explicit `.status` in `[400, 599]` → status passes through verbatim.
+
+## Body reading
+
+`maxBodyBytes` (default 1 MiB) is enforced two ways on every body-reading route:
+
+1. **Content-Length fast-path.** If the declared length exceeds the cap, reject `413 PayloadTooLarge` before reading any bytes.
+2. **Mid-stream counter.** Otherwise read `request.body.getReader()` with a running byte total; reject `413` as soon as the counter crosses the cap. Handles chunked uploads and CL-liars.
+
+Invalid JSON → `400 BadJsonBody`. Empty body → `null`.
+
+## Composition — `onMiss`
+
+Default (no `onMiss`): adapter is terminal. Unknown / off-mount requests resolve to an empty `404 Response`. Suitable for single-collection Workers and `Deno.serve(handler)`.
+
+With `onMiss`: the hook decides. Return:
+- `Response` → handler returns it.
+- `null` → handler returns `null`, widening the caller's type so it can fall through to another handler.
+- `undefined` → fall back to the default `404 Response`.
+
+Example Hono composition:
+
+```js
+const planetsHandler = createFetchAdapter(planets, {mountPath: '/planets', onMiss: () => null});
+app.all('/planets/*', async c => (await planetsHandler(c.req.raw)) ?? c.notFound());
 ```
 
 ## Target runtimes
@@ -38,7 +92,9 @@ export function createFetchAdapter<TItem extends Record<string, unknown>>(
 - **Bun.serve** — `Bun.serve({fetch: handler})`
 - **Hono** — delegate from `c.req.raw`
 - **itty-router** — catch-all route that defers to the handler
-- **Node 20+** — via `node:http` with Fetch request reconstruction, or any wrapper that already exposes Fetch
+- **Node 20+** — any `(Request) => Promise<Response>` server
+
+Every target runtime ships the Fetch globals. The adapter uses only `Request`, `Response`, `URL`, `URLSearchParams`, `TextDecoder`, and `ReadableStream`.
 
 ## Reference
 

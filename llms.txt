@@ -2,7 +2,7 @@
 
 > Fetch adapter for `dynamodb-toolkit` v3. Serves the toolkit's standard REST route pack as a `(request: Request) => Promise<Response>` handler.
 
-**Status:** scaffolding. API below is provisional.
+Zero runtime dependencies. No framework peer dep — `Request` / `Response` / `URL` are platform primitives. Runs on Cloudflare Workers, Deno Deploy, Bun.serve, Hono, itty-router, and Node 20+.
 
 ## Install
 
@@ -10,23 +10,41 @@
 npm install dynamodb-toolkit-fetch dynamodb-toolkit
 ```
 
-## Quick start
+## API
 
 ```js
-import {Adapter} from 'dynamodb-toolkit';
 import {createFetchAdapter} from 'dynamodb-toolkit-fetch';
 
-const adapter = new Adapter({client, table: 'planets', keyFields: ['name']});
-const handler = createFetchAdapter(adapter, {mountPath: '/planets'});
+const handler = createFetchAdapter(adapter, options?);
+// handler: (request: Request) => Promise<Response>
+// With options.onMiss: (request: Request) => Promise<Response | null>
+```
 
+### Options
+
+- `policy` — partial overrides for the REST policy (envelope keys, status codes, prefixes, limits).
+- `sortableIndices` — map sort-field → GSI name for `?sort=`.
+- `keyFromPath(raw, adapter)` — convert URL `:key` to a key object. Default uses `adapter.keyFields[0]`.
+- `exampleFromContext(query, body, request)` — derive `prepareListInput` example from the request.
+- `maxBodyBytes` — body cap (default 1 MiB). Enforced via `Content-Length` fast-path + streaming byte counter.
+- `mountPath` — path prefix to strip before matching (e.g. `/planets`).
+- `onMiss(request)` — hook for unknown/off-mount paths; return `null` to yield to a parent router. Without it, misses become terminal `404 Response`.
+
+## Quick starts
+
+```js
 // Cloudflare Workers
 export default {fetch: handler};
 
-// Bun.serve
-Bun.serve({port: 3000, fetch: handler});
+// Bun
+Bun.serve({fetch: handler});
 
-// Deno.serve
+// Deno
 Deno.serve(handler);
+
+// Hono composition
+const planets = createFetchAdapter(adapter, {mountPath: '/planets', onMiss: () => null});
+app.all('/planets/*', async c => (await planets(c.req.raw)) ?? c.notFound());
 ```
 
 ## Links

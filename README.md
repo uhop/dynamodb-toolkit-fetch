@@ -5,17 +5,15 @@
 
 Fetch adapter for [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) v3. Serves the toolkit's standard REST route pack as a `(request: Request) => Promise<Response>` handler — same wire contract as `dynamodb-toolkit/handler` (the bundled `node:http` adapter), [`dynamodb-toolkit-koa`](https://github.com/uhop/dynamodb-toolkit-koa), and [`dynamodb-toolkit-express`](https://github.com/uhop/dynamodb-toolkit-express), translated for the Web Fetch handler shape.
 
-Runs anywhere with standard Fetch APIs: **Cloudflare Workers**, **Deno Deploy**, **Bun.serve**, **Hono**, **itty-router**, **Node's native `fetch` server**.
+Zero runtime dependencies. No framework peer dep — `Request` / `Response` / `URL` are platform primitives.
 
-> **Status: scaffolding.** Implementation to follow. Sibling packages `dynamodb-toolkit-koa@0.1.0` and `dynamodb-toolkit-express@0.1.0` are the structural reference.
+Runs on **Cloudflare Workers**, **Deno Deploy**, **Bun.serve**, **Hono**, **itty-router**, and Node 20+ servers that speak Fetch.
 
 ## Install
 
 ```sh
 npm install dynamodb-toolkit-fetch dynamodb-toolkit @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
-
-`dynamodb-toolkit` is declared as a **peer dependency**. There is no framework peer dep — `Request` / `Response` / `URL` are platform primitives.
 
 ## Quick start
 
@@ -33,48 +31,87 @@ const planets = new Adapter({client, table: 'planets', keyFields: ['name']});
 const handler = createFetchAdapter(planets, {mountPath: '/planets'});
 
 export default {
-  fetch(request) {
-    return handler(request);
-  }
+  fetch: request => handler(request)
 };
 ```
 
-### Bun.serve
+### Bun.serve / Deno.serve
 
 ```js
 import {createFetchAdapter} from 'dynamodb-toolkit-fetch';
 
 const handler = createFetchAdapter(planets, {mountPath: '/planets'});
+
+// Bun
 Bun.serve({port: 3000, fetch: handler});
+
+// Deno
+Deno.serve(handler);
 ```
 
-### Hono
+### Hono / itty-router composition
+
+`onMiss: () => null` lets the adapter yield control back to a parent router when the path isn't one of its own — the handler resolves to `null` and the router tries the next matcher.
 
 ```js
 import {Hono} from 'hono';
 import {createFetchAdapter} from 'dynamodb-toolkit-fetch';
 
-const handler = createFetchAdapter(planets);
+const planetsHandler = createFetchAdapter(planets, {
+  mountPath: '/planets',
+  onMiss: () => null
+});
 
 const app = new Hono();
-app.all('/planets/*', c => handler(c.req.raw));
+app.all('/planets/*', async c => (await planetsHandler(c.req.raw)) ?? c.notFound());
 ```
 
-### Deno Deploy
+The adapter is terminal by default — if you omit `onMiss`, unknown routes become a plain `404 Response` so `Bun.serve`, `Deno.serve`, and `export default {fetch}` can return the handler directly with no wrapping.
 
-```ts
-import {createFetchAdapter} from 'dynamodb-toolkit-fetch';
+## Options
 
-const handler = createFetchAdapter(planets, {mountPath: '/planets'});
-Deno.serve(handler);
-```
+| Option               | Default                                 | Purpose                                                               |
+| -------------------- | --------------------------------------- | --------------------------------------------------------------------- |
+| `policy`             | `defaultPolicy`                         | Partial overrides for prefixes, envelope keys, status codes.          |
+| `sortableIndices`    | `{}`                                    | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.         |
+| `keyFromPath`        | `(raw, a) => ({[a.keyFields[0]]: raw})` | Convert `:key` path segment to a key object (composite keys).         |
+| `exampleFromContext` | `() => ({})`                            | Derive `prepareListInput` `example` from `(query, body, request)`.    |
+| `maxBodyBytes`       | `1048576` (1 MiB)                       | Cap for request bodies. Enforced via `Content-Length` + byte counter. |
+| `mountPath`          | `''`                                    | Path prefix to strip before route matching (e.g. `/planets`).         |
+| `onMiss`             | —                                       | Hook for unknown routes; return `null` to yield to a parent router.   |
 
-The adapter serves the [standard route pack](https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler) — envelope keys, status codes, and prefixes all configurable via `options.policy`.
+Body size is enforced two ways: if the request declares a `Content-Length` above `maxBodyBytes`, the adapter rejects `413 PayloadTooLarge` before reading any bytes; otherwise it streams via `request.body.getReader()` with a running byte counter and rejects mid-stream if the cap is crossed — so chunked-encoded uploads can't smuggle past the header check.
+
+## Routes
+
+Rooted at `mountPath` (or at `/` when no mount is configured):
+
+| Method | Path               | Adapter method                |
+| ------ | ------------------ | ----------------------------- |
+| GET    | `/`                | `getAll` (envelope + links)   |
+| POST   | `/`                | `post`                        |
+| DELETE | `/`                | `deleteAllByParams`           |
+| GET    | `/-by-names`       | `getByKeys`                   |
+| DELETE | `/-by-names`       | `deleteByKeys`                |
+| PUT    | `/-load`           | `putAll`                      |
+| PUT    | `/-clone`          | `cloneAllByParams` (overlay)  |
+| PUT    | `/-move`           | `moveAllByParams` (overlay)   |
+| PUT    | `/-clone-by-names` | `cloneByKeys` (overlay)       |
+| PUT    | `/-move-by-names`  | `moveByKeys` (overlay)        |
+| GET    | `/:key`            | `getByKey`                    |
+| PUT    | `/:key`            | `put` (URL key merged in)     |
+| PATCH  | `/:key`            | `patch` (meta keys → options) |
+| DELETE | `/:key`            | `delete`                      |
+| PUT    | `/:key/-clone`     | `clone`                       |
+| PUT    | `/:key/-move`      | `move`                        |
+
+Wire contract — query syntax, envelope shape, meta-key prefixes, status codes — matches the bundled [HTTP handler](https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler). Everything is configurable through `options.policy`.
 
 ## Compatibility
 
-- **Any runtime with standard Fetch APIs.** No framework peer dep.
-- **Node 20+**, **Bun**, **Deno**, **Cloudflare Workers**, **Deno Deploy** — tested across all where tape-six runs.
+- Any runtime with the standard Fetch API: **Cloudflare Workers**, **Deno Deploy**, **Bun.serve**, **Hono**, **itty-router**, **Node 20+**.
+- No framework peer dep.
+- `peerDependencies`: `dynamodb-toolkit ^3.1.1` only.
 
 ## License
 
