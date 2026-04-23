@@ -48,12 +48,12 @@ export function createFetchAdapter<TItem>(
 
 Rooted at `options.mountPath` (or at `/` when no mount is configured):
 
-- `GET /` — `getAll` (envelope with data / offset / limit / total / optional next+prev links)
+- `GET /` — `getList` (envelope with data / offset / limit / total / optional next+prev links)
 - `POST /` — `post` (204 on success)
-- `DELETE /` — `deleteAllByParams` (returns `{processed}`)
+- `DELETE /` — `deleteListByParams` (returns `{processed}`)
 - `GET /-by-names`, `DELETE /-by-names` — `getByKeys` / `deleteByKeys`
-- `PUT /-load` — `putAll` (body must be an array; 400 `BadLoadBody` otherwise)
-- `PUT /-clone`, `PUT /-move` — `cloneAllByParams` / `moveAllByParams` (body is overlay)
+- `PUT /-load` — `putItems` (body must be an array; 400 `BadLoadBody` otherwise)
+- `PUT /-clone`, `PUT /-move` — `cloneListByParams` / `moveListByParams` (body is overlay)
 - `PUT /-clone-by-names`, `PUT /-move-by-names` — `cloneByKeys` / `moveByKeys`
 - `GET /:key` — `getByKey` (empty `policy.statusCodes.miss` on undefined)
 - `PUT /:key` — `put` (body merged with URL key; `?force=true` toggles force)

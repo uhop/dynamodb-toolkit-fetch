@@ -70,15 +70,15 @@ The adapter is terminal by default — if you omit `onMiss`, unknown routes beco
 
 ## Options
 
-| Option               | Default                                 | Purpose                                                               |
-| -------------------- | --------------------------------------- | --------------------------------------------------------------------- |
-| `policy`             | `defaultPolicy`                         | Partial overrides for prefixes, envelope keys, status codes.          |
-| `sortableIndices`    | `{}`                                    | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.         |
-| `keyFromPath`        | `(raw, a) => ({[a.keyFields[0]]: raw})` | Convert `:key` path segment to a key object (composite keys).         |
-| `exampleFromContext` | `() => ({})`                            | Derive `prepareListInput` `example` from `{query, body, adapter, framework: 'fetch', request}`. |
-| `maxBodyBytes`       | `1048576` (1 MiB)                       | Cap for request bodies. Enforced via `Content-Length` + byte counter. |
-| `mountPath`          | `''`                                    | Path prefix to strip before route matching (e.g. `/planets`).         |
-| `onMiss`             | —                                       | Hook for unknown routes; return `null` to yield to a parent router.   |
+| Option               | Default                                      | Purpose                                                                                         |
+| -------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `policy`             | `defaultPolicy`                              | Partial overrides for prefixes, envelope keys, status codes.                                    |
+| `sortableIndices`    | `{}`                                         | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.                                   |
+| `keyFromPath`        | `(raw, a) => ({[a.keyFields[0].name]: raw})` | Convert `:key` path segment to a key object (composite keys).                                   |
+| `exampleFromContext` | `() => ({})`                                 | Derive `prepareListInput` `example` from `{query, body, adapter, framework: 'fetch', request}`. |
+| `maxBodyBytes`       | `1048576` (1 MiB)                            | Cap for request bodies. Enforced via `Content-Length` + byte counter.                           |
+| `mountPath`          | `''`                                         | Path prefix to strip before route matching (e.g. `/planets`).                                   |
+| `onMiss`             | —                                            | Hook for unknown routes; return `null` to yield to a parent router.                             |
 
 Body size is enforced two ways: if the request declares a `Content-Length` above `maxBodyBytes`, the adapter rejects `413 PayloadTooLarge` before reading any bytes; otherwise it streams via `request.body.getReader()` with a running byte counter and rejects mid-stream if the cap is crossed — so chunked-encoded uploads can't smuggle past the header check.
 
@@ -88,14 +88,14 @@ Rooted at `mountPath` (or at `/` when no mount is configured):
 
 | Method | Path               | Adapter method                |
 | ------ | ------------------ | ----------------------------- |
-| GET    | `/`                | `getAll` (envelope + links)   |
+| GET    | `/`                | `getList` (envelope + links)  |
 | POST   | `/`                | `post`                        |
-| DELETE | `/`                | `deleteAllByParams`           |
+| DELETE | `/`                | `deleteListByParams`          |
 | GET    | `/-by-names`       | `getByKeys`                   |
 | DELETE | `/-by-names`       | `deleteByKeys`                |
-| PUT    | `/-load`           | `putAll`                      |
-| PUT    | `/-clone`          | `cloneAllByParams` (overlay)  |
-| PUT    | `/-move`           | `moveAllByParams` (overlay)   |
+| PUT    | `/-load`           | `putItems`                    |
+| PUT    | `/-clone`          | `cloneListByParams` (overlay) |
+| PUT    | `/-move`           | `moveListByParams` (overlay)  |
 | PUT    | `/-clone-by-names` | `cloneByKeys` (overlay)       |
 | PUT    | `/-move-by-names`  | `moveByKeys` (overlay)        |
 | GET    | `/:key`            | `getByKey`                    |

@@ -24,7 +24,7 @@ const handler = createFetchAdapter(adapter, options?);
 
 - `policy` — partial overrides for the REST policy (envelope keys, status codes, prefixes, limits).
 - `sortableIndices` — map sort-field → GSI name for `?sort=`.
-- `keyFromPath(raw, adapter)` — convert URL `:key` to a key object. Default uses `adapter.keyFields[0]`.
+- `keyFromPath(raw, adapter)` — convert URL `:key` to a key object. Default uses `adapter.keyFields[0].name`.
 - `exampleFromContext(query, body, request)` — derive `prepareListInput` example from the request.
 - `maxBodyBytes` — body cap (default 1 MiB). Enforced via `Content-Length` fast-path + streaming byte counter.
 - `mountPath` — path prefix to strip before matching (e.g. `/planets`).

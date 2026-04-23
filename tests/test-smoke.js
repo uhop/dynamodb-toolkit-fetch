@@ -21,5 +21,5 @@ test('smoke: handler returns a Response', async t => {
   const handler = createFetchAdapter(adapter);
   const res = await handler(new Request('http://local.test/'));
   t.ok(res instanceof Response, 'returns a Response instance');
-  t.equal(res.status, 200, 'root GET responds 200 from mock getAll');
+  t.equal(res.status, 200, 'root GET responds 200 from mock getList');
 });

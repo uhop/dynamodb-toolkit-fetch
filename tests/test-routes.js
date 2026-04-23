@@ -8,7 +8,7 @@ import {createFetchAdapter} from 'dynamodb-toolkit-fetch';
 import {makeMockAdapter} from './helpers/mock-adapter.js';
 import {withFetchHandler} from './helpers/with-fetch-handler.js';
 
-test('GET / — envelope + paging links from mock getAll', async t => {
+test('GET / — envelope + paging links from mock getList', async t => {
   const adapter = makeMockAdapter();
   await withFetchHandler(createFetchAdapter(adapter), async client => {
     const res = await client('/?offset=0&limit=2');
@@ -18,7 +18,7 @@ test('GET / — envelope + paging links from mock getAll', async t => {
     t.equal(body.offset, 0);
     t.equal(body.limit, 2);
     t.equal(body.total, 2);
-    t.equal(adapter.calls[0].fn, 'getAll');
+    t.equal(adapter.calls[0].fn, 'getList');
     t.equal(adapter.calls[0].opts.offset, 0);
     t.equal(adapter.calls[0].opts.limit, 2);
   });
@@ -26,7 +26,7 @@ test('GET / — envelope + paging links from mock getAll', async t => {
 
 test('GET / — pagination links appear when total > limit', async t => {
   const adapter = makeMockAdapter({
-    async getAll(opts) {
+    async getList(opts) {
       return {data: [{name: 'a'}], offset: opts.offset, limit: opts.limit, total: 20};
     }
   });
@@ -54,7 +54,7 @@ test('POST / — creates via adapter.post', async t => {
   });
 });
 
-test('DELETE / — deleteAllByParams with built params', async t => {
+test('DELETE / — deleteListByParams with built params', async t => {
   const adapter = makeMockAdapter();
   await withFetchHandler(createFetchAdapter(adapter), async client => {
     const res = await client('/?limit=10', {method: 'DELETE'});
@@ -62,7 +62,7 @@ test('DELETE / — deleteAllByParams with built params', async t => {
     t.equal(res.status, 200);
     t.equal(body.processed, 5);
     t.equal(adapter.calls[0].fn, '_buildListParams');
-    t.equal(adapter.calls[1].fn, 'deleteAllByParams');
+    t.equal(adapter.calls[1].fn, 'deleteListByParams');
   });
 });
 
@@ -107,7 +107,7 @@ test('DELETE /-by-names — falls back to array body when no query', async t => 
   });
 });
 
-test('PUT /-load — bulk putAll', async t => {
+test('PUT /-load — bulk putItems', async t => {
   const adapter = makeMockAdapter();
   await withFetchHandler(createFetchAdapter(adapter), async client => {
     const res = await client('/-load', {
@@ -134,7 +134,7 @@ test('PUT /-load — 400 when body is not an array', async t => {
   });
 });
 
-test('PUT /-clone — cloneAllByParams with overlay', async t => {
+test('PUT /-clone — cloneListByParams with overlay', async t => {
   const adapter = makeMockAdapter();
   await withFetchHandler(createFetchAdapter(adapter), async client => {
     const res = await client('/-clone', {
@@ -144,11 +144,11 @@ test('PUT /-clone — cloneAllByParams with overlay', async t => {
     });
     const body = await res.json();
     t.equal(body.processed, 3);
-    t.equal(adapter.calls[1].fn, 'cloneAllByParams');
+    t.equal(adapter.calls[1].fn, 'cloneListByParams');
   });
 });
 
-test('PUT /-move — moveAllByParams with overlay', async t => {
+test('PUT /-move — moveListByParams with overlay', async t => {
   const adapter = makeMockAdapter();
   await withFetchHandler(createFetchAdapter(adapter), async client => {
     const res = await client('/-move', {
@@ -158,7 +158,7 @@ test('PUT /-move — moveAllByParams with overlay', async t => {
     });
     const body = await res.json();
     t.equal(body.processed, 3);
-    t.equal(adapter.calls[1].fn, 'moveAllByParams');
+    t.equal(adapter.calls[1].fn, 'moveListByParams');
   });
 });
 
