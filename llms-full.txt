@@ -109,4 +109,5 @@ Every target runtime ships the Fetch globals. The adapter uses only `Request`, `
 - Parent toolkit: https://github.com/uhop/dynamodb-toolkit
 - Sibling adapter (Koa): https://github.com/uhop/dynamodb-toolkit-koa
 - Sibling adapter (Express): https://github.com/uhop/dynamodb-toolkit-express
+- Sibling adapter (Lambda): https://github.com/uhop/dynamodb-toolkit-lambda
 - Route pack contract: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler

@@ -3,7 +3,7 @@
 [npm-img]: https://img.shields.io/npm/v/dynamodb-toolkit-fetch.svg
 [npm-url]: https://npmjs.org/package/dynamodb-toolkit-fetch
 
-Fetch adapter for [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) v3. Serves the toolkit's standard REST route pack as a `(request: Request) => Promise<Response>` handler — same wire contract as `dynamodb-toolkit/handler` (the bundled `node:http` adapter), [`dynamodb-toolkit-koa`](https://github.com/uhop/dynamodb-toolkit-koa), and [`dynamodb-toolkit-express`](https://github.com/uhop/dynamodb-toolkit-express), translated for the Web Fetch handler shape.
+Fetch adapter for [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) v3. Serves the toolkit's standard REST route pack as a `(request: Request) => Promise<Response>` handler — same wire contract as `dynamodb-toolkit/handler` (the bundled `node:http` adapter), [`dynamodb-toolkit-koa`](https://github.com/uhop/dynamodb-toolkit-koa), [`dynamodb-toolkit-express`](https://github.com/uhop/dynamodb-toolkit-express), and [`dynamodb-toolkit-lambda`](https://github.com/uhop/dynamodb-toolkit-lambda), translated for the Web Fetch handler shape.
 
 Zero runtime dependencies. No framework peer dep — `Request` / `Response` / `URL` are platform primitives.
 
