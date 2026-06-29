@@ -5,16 +5,6 @@
 // handler's `readJsonBody` wire behavior (413 on overflow, 400 on invalid
 // JSON) but works against the Fetch `Request` / `ReadableStream` surface so
 // it runs on Cloudflare Workers, Deno Deploy, Bun.serve, and Node 20+.
-//
-// Strategy:
-//   1. If `Content-Length` is declared and exceeds `maxBodyBytes`, reject 413
-//      before touching the stream — avoids reading any bytes for clearly-bad
-//      uploads.
-//   2. Otherwise stream the body via `request.body.getReader()` with a running
-//      byte counter. Reject 413 mid-stream if the counter crosses the cap
-//      (covers chunked transfer without Content-Length and CL-liars).
-//   3. UTF-8 decode and JSON.parse the accumulated text. Empty body → null.
-//      Invalid JSON → 400 BadJsonBody.
 
 export const readJsonBody = async (request, maxBodyBytes) => {
   const cl = request.headers.get('content-length');
