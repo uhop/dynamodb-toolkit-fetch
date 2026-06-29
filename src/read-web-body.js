@@ -1,3 +1,5 @@
+// @ts-self-types="./read-web-body.d.ts"
+
 // Hybrid-strategy JSON body reader for Web Fetch requests. Used by the Fetch
 // adapter when a body needs to be read from a `Request`. Mirrors the node:http
 // handler's `readJsonBody` wire behavior (413 on overflow, 400 on invalid

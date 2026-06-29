@@ -1,3 +1,5 @@
+// @ts-self-types="./index.d.ts"
+
 // Fetch adapter for dynamodb-toolkit v3.
 //
 // Translates Web Fetch `(request: Request) => Promise<Response>` into the
