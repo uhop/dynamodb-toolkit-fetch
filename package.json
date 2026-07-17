@@ -1,7 +1,7 @@
 {
   "name": "dynamodb-toolkit-fetch",
-  "version": "0.3.0",
-  "description": "Fetch adapter for dynamodb-toolkit — serves the standard REST route pack as a (Request) → Promise<Response> handler. Runs on Cloudflare Workers, Deno Deploy, Bun.serve, Hono, itty-router, and Node's native fetch server.",
+  "version": "0.4.0",
+  "description": "Frozen re-export thunk — superseded by the dynamodb-toolkit/fetch subpath export (dynamodb-toolkit 3.8.0+). Import the subpath directly in new code.",
   "type": "module",
   "main": "./src/index.js",
   "module": "./src/index.js",
@@ -77,16 +77,16 @@
     "node": ">=20"
   },
   "peerDependencies": {
-    "dynamodb-toolkit": "^3.7.0"
+    "dynamodb-toolkit": ">=3.8.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.1076.0",
-    "@aws-sdk/lib-dynamodb": "^3.1076.0",
-    "@types/node": "^26.0.1",
-    "dynamodb-toolkit": "^3.7.1",
-    "prettier": "^3.9.3",
-    "tape-six": "^1.11.0",
-    "typescript": "^6.0.3"
+    "@aws-sdk/client-dynamodb": "^3.1089.0",
+    "@aws-sdk/lib-dynamodb": "^3.1089.0",
+    "@types/node": "^26.1.1",
+    "dynamodb-toolkit": "^3.8.0",
+    "prettier": "^3.9.5",
+    "tape-six": "^1.15.0",
+    "typescript": "^7.0.2"
   },
   "files": [
     "src",

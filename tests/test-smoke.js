@@ -2,7 +2,14 @@ import test from 'tape-six';
 
 import {createFetchAdapter} from 'dynamodb-toolkit-fetch';
 
-import {makeMockAdapter} from './helpers/mock-adapter.js';
+// Minimal adapter stand-in: enough for the factory shape checks plus one
+// driven GET / (which calls adapter.getList).
+const makeMockAdapter = () => ({
+  keyFields: [{name: 'name', type: 'string'}],
+  async getList(opts) {
+    return {data: [], offset: opts.offset, limit: opts.limit, total: 0};
+  }
+});
 
 test('smoke: package loads + factory returns a fetch handler', t => {
   const adapter = makeMockAdapter();
